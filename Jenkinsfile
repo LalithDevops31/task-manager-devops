@@ -11,7 +11,7 @@ pipeline {
         BACKEND_IMAGE       = "${DOCKER_HUB_USERNAME}/task-manager-backend"
         FRONTEND_IMAGE      = "${DOCKER_HUB_USERNAME}/task-manager-frontend"
         IMAGE_TAG           = "${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS  = 'dockerhub-credentials-id'
+        DOCKER_CREDENTIALS  = 'dockerhub-credentials'
     }
 
     stages {
@@ -127,8 +127,8 @@ pipeline {
                 }
             }
             when {
-                branch 'main'
-            }
+    expression { GIT_BRANCH == 'origin/main' }
+}
             steps {
                 withCredentials([
                     usernamePassword(
