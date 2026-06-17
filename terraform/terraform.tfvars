@@ -1,0 +1,10 @@
+region             = "ap-southeast-2"
+cluster_name       = "task-manager-cluster"
+environment        = "production"
+vpc_cidr           = "10.0.0.0/16"
+instance_type      = "t3.medium"
+node_instance_type = "t3.medium"
+desired_nodes      = 2
+min_nodes          = 1
+max_nodes          = 3
+key_name           = "jenkins-key"
