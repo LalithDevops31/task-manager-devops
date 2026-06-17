@@ -2,8 +2,8 @@ pipeline {
     agent none
 
     options {
-        timeout(time: 30, unit: 'MINUTES')   // kill the build if it hangs
-        disableConcurrentBuilds()            // queue builds — prevents port clashes on agent
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     environment {
@@ -16,21 +16,15 @@ pipeline {
 
     stages {
 
-        // ─────────────────────────────────────────
-        // STAGE 1: Checkout
-        // ─────────────────────────────────────────
         stage('Checkout SCM') {
             agent any
             steps {
                 checkout scm
-                echo "✅ Code checked out at commit: ${GIT_COMMIT}"
+                echo "Code checked out at commit: ${GIT_COMMIT}"
                 sh 'ls -la'
             }
         }
 
-        // ─────────────────────────────────────────
-        // STAGE 2: Init / Validate
-        // ─────────────────────────────────────────
         stage('Init & Validate') {
             agent {
                 docker {
@@ -39,21 +33,16 @@ pipeline {
                 }
             }
             steps {
-                echo "🔍 Build #${BUILD_NUMBER} | Branch: ${GIT_BRANCH}"
+                echo "Build #${BUILD_NUMBER} | Branch: ${GIT_BRANCH}"
                 sh 'docker version'
-                sh 'docker info'
                 sh '''
-                    echo "Checking project structure..."
-                    test -d ./backend  || (echo "❌ backend/ folder missing!"  && exit 1)
-                    test -d ./frontend || (echo "❌ frontend/ folder missing!" && exit 1)
-                    echo "✅ Project structure looks good"
+                    test -d ./backend  || (echo "backend/ missing"  && exit 1)
+                    test -d ./frontend || (echo "frontend/ missing" && exit 1)
+                    echo "Project structure OK"
                 '''
             }
         }
 
-        // ─────────────────────────────────────────
-        // STAGE 3 + 4: Build Backend & Frontend (PARALLEL)
-        // ─────────────────────────────────────────
         stage('Build Images') {
             parallel {
 
@@ -66,15 +55,12 @@ pipeline {
                     }
                     steps {
                         sh '''
-                            echo "🔨 Building backend image..."
                             docker build \
                                 --tag  ${BACKEND_IMAGE}:${IMAGE_TAG} \
                                 --tag  ${BACKEND_IMAGE}:latest \
                                 --file ./backend/Dockerfile \
-                                --label "build.number=${BUILD_NUMBER}" \
-                                --label "git.commit=${GIT_COMMIT}" \
                                 ./backend
-                            echo "✅ Backend image built: ${BACKEND_IMAGE}:${IMAGE_TAG}"
+                            echo "Backend image built"
                         '''
                     }
                 }
@@ -88,15 +74,12 @@ pipeline {
                     }
                     steps {
                         sh '''
-                            echo "🔨 Building frontend image..."
                             docker build \
                                 --tag  ${FRONTEND_IMAGE}:${IMAGE_TAG} \
                                 --tag  ${FRONTEND_IMAGE}:latest \
                                 --file ./frontend/Dockerfile \
-                                --label "build.number=${BUILD_NUMBER}" \
-                                --label "git.commit=${GIT_COMMIT}" \
                                 ./frontend
-                            echo "✅ Frontend image built: ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                            echo "Frontend image built"
                         '''
                     }
                 }
@@ -104,9 +87,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // STAGE 5: Test
-        // ─────────────────────────────────────────
         stage('Test') {
             agent {
                 docker {
@@ -116,38 +96,29 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "🧪 Starting backend test container..."
                     docker run -d \
-                        --name  backend-test-${BUILD_NUMBER} \
-                        --env   NODE_ENV=test \
-                        -p      3001:3000 \
+                        --name backend-test-${BUILD_NUMBER} \
+                        -p 3001:3001 \
                         ${BACKEND_IMAGE}:${IMAGE_TAG}
 
-                    echo "⏳ Waiting for backend to start..."
                     sleep 10
 
-                    echo "🔍 Hitting /health endpoint..."
                     docker exec backend-test-${BUILD_NUMBER} \
-                        wget -qO- http://localhost:3000/health || \
-                        curl -f   http://localhost:3000/health
+                        wget -qO- http://localhost:3001/health
 
-                    echo "✅ Health check passed!"
+                    echo "Health check passed!"
                 '''
             }
             post {
                 always {
                     sh '''
-                        echo "🧹 Cleaning up test container..."
-                        docker stop   backend-test-${BUILD_NUMBER} || true
-                        docker rm -f  backend-test-${BUILD_NUMBER} || true
+                        docker stop  backend-test-${BUILD_NUMBER} || true
+                        docker rm -f backend-test-${BUILD_NUMBER} || true
                     '''
                 }
             }
         }
 
-        // ─────────────────────────────────────────
-        // STAGE 6: Push to Registry
-        // ─────────────────────────────────────────
         stage('Push Images') {
             agent {
                 docker {
@@ -167,48 +138,33 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        echo "🔐 Logging into Docker Hub..."
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-
-                        echo "📦 Pushing backend..."
                         docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
                         docker push ${BACKEND_IMAGE}:latest
-
-                        echo "📦 Pushing frontend..."
                         docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
                         docker push ${FRONTEND_IMAGE}:latest
-
-                        echo "✅ All images pushed!"
+                        docker logout
                     '''
                 }
             }
-            post {
-    always {
-        node('built-in') {
-            sh 'docker system prune -f || true'
         }
-    }
-    success {
-        echo 'Pipeline completed - images pushed to Docker Hub'
-    }
-    failure {
-        echo 'Pipeline failed - check logs above'
-    }
-}
-    }
+
+    }   // ← FIX 1: this closing brace for stages{} was missing
 
     post {
         always {
-            echo "📋 Pipeline finished — Build #${BUILD_NUMBER}"
+            echo "Pipeline finished — Build #${BUILD_NUMBER}"
         }
         success {
-            echo "🎉 SUCCESS — Images pushed: ${BACKEND_IMAGE}:${IMAGE_TAG}"
+            echo "SUCCESS — Images pushed: ${BACKEND_IMAGE}:${IMAGE_TAG}"
         }
         failure {
-            echo "🔥 FAILED — Check stage logs above for errors"
+            echo "FAILED — Check stage logs above"
         }
         cleanup {
-            sh 'docker image prune -f || true'
+            node('built-in') {   // ← FIX 2: wrap sh in node block
+                sh 'docker image prune -f || true'
+            }
         }
     }
 }
