@@ -29,7 +29,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:latest'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock -e HOME=/tmp'
                 }
             }
             steps {
@@ -50,7 +50,7 @@ pipeline {
                     agent {
                         docker {
                             image 'docker:latest'
-                            args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                            args '-v /var/run/docker.sock:/var/run/docker.sock -e HOME=/tmp'
                         }
                     }
                     steps {
@@ -69,7 +69,7 @@ pipeline {
                     agent {
                         docker {
                             image 'docker:latest'
-                            args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                            args '-v /var/run/docker.sock:/var/run/docker.sock -e HOME=/tmp'
                         }
                     }
                     steps {
@@ -91,7 +91,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:latest'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock -e HOME=/tmp'
                 }
             }
             steps {
@@ -123,7 +123,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:latest'
-                    args  '-v /var/run/docker.sock:/var/run/docker.sock'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock -e HOME=/tmp'
                 }
             }
             when {
