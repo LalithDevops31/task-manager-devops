@@ -183,12 +183,18 @@ pipeline {
                 }
             }
             post {
-                always {
-                    // Logout lives here — runs even if the push fails mid-way
-                    sh 'docker logout || true'
-                }
-            }
+    always {
+        node('built-in') {
+            sh 'docker system prune -f || true'
         }
+    }
+    success {
+        echo 'Pipeline completed - images pushed to Docker Hub'
+    }
+    failure {
+        echo 'Pipeline failed - check logs above'
+    }
+}
     }
 
     post {
