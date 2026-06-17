@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const taskRoutes = require('./routes/tasks');
 const client = require('prom-client');
+const logger = require('./logger');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +31,12 @@ app.use(express.json());
 app.use((req, res, next) => {
   const end = httpRequestDuration.startTimer();
   res.on('finish', () => {
+    logger.info('HTTP Request', {
+      method: req.method,
+      route: req.path,
+      status: res.statusCode,
+      duration: Date.now()
+    });
     httpRequestCounter.inc({
       method: req.method,
       route: req.path,
@@ -58,5 +65,5 @@ app.use('/tasks', taskRoutes);
 
 // ── Start server ───────────────────────────────
 app.listen(PORT, () => {
-  console.log(`Task Manager API running on http://localhost:${PORT}`);
+  logger.info('Server started', { port: PORT, env: process.env.NODE_ENV });
 });
