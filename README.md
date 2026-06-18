@@ -146,7 +146,7 @@ feature/* ← one branch per phase
 ```
 
 ### Protect main branch
-GitHub → Settings → Branches → Add rule → `main` → Require PR before merging
+GitHub → Settings → Branches → Add rule → main → Require PR before merging
 
 ---
 
@@ -167,7 +167,7 @@ docker buildx build --platform linux/amd64 \
   -t YOURDOCKERHUB/task-manager-frontend:latest --push ./frontend
 ```
 
-> **Important:** Always build with `--platform linux/amd64` when pushing to Docker Hub for EKS. Mac M1/M2 builds arm64 by default which won't run on EKS nodes.
+> **Important:** Always build with `--platform linux/amd64` when pushing to Docker Hub for EKS. Mac M1/M2 builds arm64 by default which will not run on EKS nodes.
 
 ---
 
@@ -308,7 +308,6 @@ kubectl patch svc argocd-server -n argocd \
   -p '{"spec": {"type": "LoadBalancer"}}'
 
 kubectl get svc argocd-server -n argocd
-# Wait for EXTERNAL-IP
 
 kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d
@@ -316,7 +315,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 
 ### Create ArgoCD Application
 1. Login to ArgoCD UI (user: `admin`, password from above)
-2. New App → fill in:
+2. New App:
    - App name: `task-manager`
    - Repo URL: your GitHub URL
    - Path: `k8s`
@@ -363,7 +362,7 @@ Grafana → + → Import → enter ID:
 ```bash
 kubectl port-forward svc/prometheus-stack-kube-prom-prometheus 9090:9090 -n monitoring
 ```
-Open `http://localhost:9090` → Status → Targets (see your backend being scraped)
+Open `http://localhost:9090` → Status → Targets
 
 ### Backend metrics endpoint
 The backend exposes `GET /metrics` with:
@@ -381,7 +380,6 @@ helm repo add elastic https://helm.elastic.co
 helm repo update
 kubectl create namespace logging
 
-# Elasticsearch
 helm install elasticsearch elastic/elasticsearch \
   --version 7.17.3 \
   --namespace logging \
@@ -392,17 +390,14 @@ helm install elasticsearch elastic/elasticsearch \
   --set volumeClaimTemplate.resources.requests.storage=5Gi \
   --set volumeClaimTemplate.storageClassName=gp2
 
-# Wait for elasticsearch-master-0 to be 1/1 Running
 kubectl get pods -n logging -w
 
-# Kibana
 helm install kibana elastic/kibana \
   --version 7.17.3 \
   --namespace logging \
   --no-hooks \
   --set elasticsearchHosts=http://elasticsearch-master:9200
 
-# Filebeat
 helm install filebeat elastic/filebeat \
   --version 7.17.3 \
   --namespace logging \
@@ -435,10 +430,6 @@ Open `http://localhost:5601`
 kubectl apply -f k8s/otel/
 kubectl get pods -n task-manager | grep otel
 ```
-
-### View traces in Kibana
-1. Stack Management → Index Patterns → Create: `traces*`
-2. Discover → select `traces*` → see traces from backend
 
 ---
 
@@ -475,7 +466,7 @@ terraform plan
 terraform apply
 ```
 
-### Update kubeconfig after terraform apply
+### Update kubeconfig after apply
 ```bash
 aws eks update-kubeconfig \
   --name task-manager-cluster \
@@ -492,33 +483,28 @@ terraform destroy
 
 ## Tear Down (Stop AWS Billing)
 
-Run these in order to delete all AWS resources:
+Run these in order:
 
 ```bash
-# 1. Delete Helm releases
+# Delete Helm releases
 helm uninstall prometheus-stack -n monitoring
 helm uninstall elasticsearch -n logging
 helm uninstall kibana -n logging
 helm uninstall filebeat -n logging
 
-# 2. Delete K8s resources
+# Delete namespaces
 kubectl delete namespace task-manager
 kubectl delete namespace monitoring
 kubectl delete namespace logging
 kubectl delete namespace argocd
 
-# 3. Delete EKS cluster (takes 10-15 minutes)
+# Delete EKS cluster (takes 10-15 minutes)
 eksctl delete cluster \
   --name task-manager-cluster \
   --region ap-southeast-2
 
-# 4. Terminate Jenkins EC2
-aws ec2 terminate-instances \
-  --instance-ids <YOUR-INSTANCE-ID> \
-  --region ap-southeast-2
-
-# 5. OR if using Terraform
-cd terraform && terraform destroy
+# Terminate Jenkins EC2 from AWS Console
+# EC2 → Instances → jenkins-server → Instance State → Terminate
 ```
 
 ---
@@ -537,15 +523,15 @@ cd terraform && terraform destroy
 
 ---
 
-## Common Issues & Fixes
+## Common Issues and Fixes
 
-### Docker images won't run on EKS
+### Docker images will not run on EKS
 ```bash
 # Always build with --platform linux/amd64 on Mac
 docker buildx build --platform linux/amd64 -t IMAGE:TAG --push ./dir
 ```
 
-### nginx frontend can't reach backend in K8s
+### nginx frontend cannot reach backend in K8s
 The nginx.conf must use the Kubernetes service name:
 ```nginx
 proxy_pass http://backend-service:3001;  # correct
@@ -555,7 +541,9 @@ proxy_pass http://localhost:3001;        # wrong
 
 ### EBS volumes stuck Pending
 ```bash
-# Install EBS CSI driver
+eksctl utils associate-iam-oidc-provider \
+  --region ap-southeast-2 --cluster task-manager-cluster --approve
+
 eksctl create iamserviceaccount \
   --name ebs-csi-controller-sa \
   --namespace kube-system \
@@ -574,7 +562,7 @@ sudo systemctl restart jenkins
 ```
 
 ### ArgoCD app path does not exist
-Make sure K8s manifests are merged to `main` branch. ArgoCD watches `main` by default.
+Make sure K8s manifests are merged to main branch before creating the ArgoCD app.
 
 ### Helm release already exists
 ```bash
@@ -592,7 +580,7 @@ kubectl delete jobs -n NAMESPACE --all
 | Frontend | React 18 + Vite |
 | Backend | Node.js + Express |
 | Containerisation | Docker + docker-compose |
-| CI | Jenkins (on EC2) with Docker agents |
+| CI | Jenkins on EC2 with Docker agents |
 | Container Registry | Docker Hub |
 | Orchestration | Kubernetes on AWS EKS |
 | GitOps | ArgoCD |
